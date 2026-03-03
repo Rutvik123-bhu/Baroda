@@ -1,7 +1,8 @@
 flask
 flask-cors
 groq
-google-generativeai
+google-generativeai==0.7.2
+google-genai
 python-docx
 python-dotenv
 elevenlabs

@@ -7,183 +7,187 @@ _oc=httpx.Client.__init__; _oa=httpx.AsyncClient.__init__
 def _pc(self,*a,**kw): kw.pop("proxies",None); _oc(self,*a,**kw)
 def _pa(self,*a,**kw): kw.pop("proxies",None); _oa(self,*a,**kw)
 httpx.Client.__init__=_pc; httpx.AsyncClient.__init__=_pa
-from flask import Flask, request, jsonify
+from flask import Flask,request,jsonify
 from flask_cors import CORS
 from groq import Groq
 import google.generativeai as genai
 from elevenlabs.client import ElevenLabs
-import os
-GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-ELEVENLABS_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-VOICE_IDS = {
-    "english":  os.getenv("VOICE_ENGLISH",  "pzxut4zZz4GImZNlqQ3H"),
-    "hindi":    os.getenv("VOICE_HINDI",    "TRnaQb7q41oL7sV0w6Bu"),
-    "gujarati": os.getenv("VOICE_GUJARATI", "y3bFrCRcSPphE8Ksv5BW"),
-}
-ELEVEN_LANG = {"english": "en", "hindi": "hi"}
 
-BASE_DIR = Path(__file__).parent.resolve()
-app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
+GROQ_API_KEY=os.getenv("GROQ_API_KEY","")
+GEMINI_API_KEY=os.getenv("GEMINI_API_KEY","")
+ELEVENLABS_KEY=os.getenv("ELEVENLABS_API_KEY","")
+VOICE_IDS={
+    "english": os.getenv("VOICE_ENGLISH","pzxut4zZz4GImZNlqQ3H"),
+    "hindi":   os.getenv("VOICE_HINDI","TRnaQb7q41oL7sV0w6Bu"),
+    "gujarati":os.getenv("VOICE_GUJARATI","y3bFrCRcSPphE8Ksv5BW")
+}
+ELEVEN_LANG={"english":"en","hindi":"hi"}
+
+BASE_DIR=Path(__file__).parent.resolve()
+app=Flask(__name__,static_folder=str(BASE_DIR),static_url_path="")
 CORS(app)
 
 # =============================================================================
-# LANGUAGE RULES — written in target language for maximum model compliance
-# =============================================================================
-LANG_SYSTEM = {
-    "english": (
-        "CRITICAL LANGUAGE RULE: You MUST reply in ENGLISH ONLY. "
-        "Every single word of your response must be in English. No exceptions."
-    ),
-    "hindi": (
-        "अत्यंत महत्वपूर्ण भाषा नियम: आपको केवल और केवल हिंदी में जवाब देना है। "
-        "आपके जवाब का हर एक शब्द हिंदी में होना चाहिए। "
-        "अंग्रेजी में एक भी शब्द मत लिखो। "
-        "RERA नंबर, फोन नंबर, कीमतें — ये संख्याएं और कोड यथावत रख सकते हैं "
-        "लेकिन बाकी सब हिंदी में होना चाहिए।"
-    ),
-    "gujarati": (
-        "અત્યંત મહત્વપૂર્ણ ભાષા નિયમ: તમારે ફક્ત અને ફક્ત ગુજરાતીમાં જ જવાબ આપવાનો છે. "
-        "તમારા જવાબનો દરેક શબ્દ ગુજરાતીમાં હોવો જોઈએ. "
-        "અંગ્રેજીમાં એક પણ શબ્દ ન લખો. "
-        "RERA નંબર, ફોન નંબર, કિંમતો — આ સંખ્યાઓ અને કોડ યથાવત રાખી શકો છો "
-        "પણ બાકી બધું ગુજરાતીમાં હોવું જોઈએ."
-    ),
-}
-
-LANG_REMINDER = {
-    "english":  "REMEMBER: Your entire reply must be in ENGLISH only.",
-    "hindi":    "याद रखें: आपका पूरा जवाब केवल हिंदी में होना चाहिए। अंग्रेजी में मत लिखो।",
-    "gujarati": "યાદ રાખો: તમારો સંપૂર્ણ જવાબ ફક્ત ગુજરાતીમાં જ હોવો જોઈએ. અંગ્રેજીમાં ન લખો.",
-}
-
-# =============================================================================
-# KNOWLEDGE BASE — complete, strictly separated
+# KNOWLEDGE BASE — Every single Q&A from Chat Board Script (Amara & North Enclave)
 # =============================================================================
 KNOWLEDGE_BASE = {
 
-    "north_enclave": """NORTH ENCLAVE — Complete Property Information
+    # =========================================================================
+    # NORTH ENCLAVE
+    # =========================================================================
+    "north_enclave": [
 
-LOCATION:
-North Enclave is located Next to Vaishnodevi Temple, Nr. Nirma University, S. G. Highway, Khoraj, Ahmedabad.
+        # --- LOCATION & CONNECTIVITY ---
+        "Q: Where is North Enclave located? | A: North Enclave is located Next to Vaishnodevi Temple, Nr. Nirma University, S. G. Highway, Khoraj, Ahmedabad.",
 
-CONTACT:
-Contact Mr. Ronak Thaker at 9979997528 for all North Enclave enquiries.
+        "Q: Distance from nearby railway station and bus stand? | A: Distance from the project: Sabarmati Railway Station - 10 Km. Proposed bullet train stop/multimodal transport hub - 10 kms. Ranip Bus Stop - 9.5 Kms.",
 
-DISTANCES FROM NORTH ENCLAVE:
-- Sabarmati Railway Station: 10 Km
-- Proposed Bullet Train Stop / Multimodal Transport Hub: 10 Kms
-- Ranip Bus Stop: 9.5 Kms
-- KD Multi Specialty Hospital: 300 Mtrs
-- Osia Hyper Market: 300 Mts
-- McDonald's: 500 Mts
-- Zudio: 500 Mts
-- Zydus Corporate House: 500 Mts
-- Nirma University: 600 Mts
-- SGVP: 600 Mts
+        "Q: What are the nearby vicinities and distances from North Enclave? | A: Distance from the project: KD Multi Specialty Hospital - 300 Mtrs. Osia Hyper Market - 300 Mts. McDonald's - 500 Mts. Zudio - 500 Mts. Zydus Corporate House - 500 Mts. Nirma University - 600 Mts. SGVP - 600 Mts.",
 
-PROJECT TYPE: Luxurious Apartment project.
+        "Q: Who is the contact person for North Enclave? | A: For more details regarding this project, please contact Mr. Ronak Thaker at 9979997528.",
 
-APARTMENTS AVAILABLE:
-- 2 BHK and 3 BHK Apartments offered. Currently ONLY 3 BHK apartments are available. All 2 BHK units are SOLD OUT.
-- 3 BHK Carpet Area: 802 & 810 Sq. Ft (RERA Carpet + Balcony & Wash Area)
+        # --- PROJECT DETAILS ---
+        "Q: What type of project is North Enclave? | A: North Enclave is a Luxurious Apartment project.",
 
-PROJECT DETAILS:
-- Launch Date: 1st November 2015
-- Status: Ready to Move In
-- Total Land Area: Approximately 14,306 Sq. Mts
-- Total Units: 613 units
-- Total Floors: 14 Stories
-- Total Phases: 2
-- Units per Floor: 4
-- Model Flat: Available at project site
+        "Q: What type of apartments are available at North Enclave? | A: Project offers 2 BHK and 3 BHK Apartments. Currently only 3 BHK apartments are available.",
 
-RERA NUMBERS:
-- PR/GJ/GANDHINAGAR/GANDHINAGAR/AUDA/RAA04324/A1R/211021
-- L Block: PR/GJ/GANDHINAGAR/GANDHINAGAR/AUDA/MAA09056/150921
+        "Q: Are 2 BHK apartments available at North Enclave? | A: All 2 BHK units are sold out.",
 
-AMENITIES: Lavish Clubhouse, Pickleball Court, Community Hall, Indoor Games, Gym, Swimming Pool, Kids Play Area, Children Library, and many more.
+        "Q: What is the carpet area of 3 BHK at North Enclave? | A: Carpet Area of 3 BHK is 802 & 810 Sq. Ft (RERA Carpet + Balcony & Wash Area).",
 
-CAR PARKING:
-- 3 BHK: Car parking available. Charges: Rs. 1,50,000/- + GST
-- 2 BHK: No allotted car parking facility
+        "Q: When was North Enclave launched? | A: North Enclave was launched on 1st November 2015.",
 
-PRICING:
-- 3 BHK Apartments: Starting from Rs. 64,75,000 onwards
-- Booking Amount: 10% of the agreement value
-- Price Negotiation: NOT possible. Prices are fixed.
-- Bank Approvals: Approved from all leading banks including govt, private and NBFC""",
+        "Q: What is the completion or possession date of North Enclave? | A: North Enclave is ready to move in.",
 
-    "amara": """AMARA — Complete Property Information
+        "Q: What is the total land area of North Enclave? | A: Total land area of the project is Approx. 14,306 Sq. Mts.",
 
-LOCATION:
-Amara is located besides Gokuldham, Eklavya School Road, Shela Extension, Sanathal, Ahmedabad.
-Postal Address: Amara, besides Gokuldham, Eklavya School Road, Shela Extension, Sanathal, Ahmedabad - 382210.
+        "Q: How many total units does North Enclave have? | A: Project offers 613 units in total.",
 
-CONTACT:
-Call +91 8123002555 for all Amara enquiries.
+        "Q: How many floors does North Enclave have? | A: Total number of Floors - 14 Stories.",
 
-LOCATION HIGHLIGHTS:
-Corner Plot on Proposed 80 Ft road with two side open road. Close proximity to posh locality of Gokuldham and Safal Vihan.
+        "Q: How many phases does North Enclave have? | A: Total number of Phases - 2.",
 
-DISTANCES FROM AMARA:
-- Airport: 25 kms (40 mins)
-- Railway Station (Ahmedabad): 15 kms (20 mins)
-- Sarkhej Railway Station: 3.5 kms
-- Central Bus Station (Ahmedabad): 15 kms (20 mins)
-- Nehrunagar Bus Station: 9 kms (12 mins)
-- Sahyog General Hospital: 2.5 kms
-- Aadarsh Hospital: 2.5 kms
-- Sanidhya Multispeciality: 3.8 kms
-- Krishna Shalby: 5 kms
-- Eklavya School: 0.2 kms
-- Lakshya International: 2 kms
-- Shanti Asiatic: 3 kms
-- Sanand: 7 kms
-- Prahladnagar Junction: 7 kms
-- YMCA Club: 6 kms
-- Sarkhej Cross Road: 5 kms
+        "Q: How many units are on each floor at North Enclave? | A: We have 4 units on each floor.",
 
-PROJECT TYPE: Fully residential project.
+        "Q: Is there a model flat at North Enclave? | A: Yes, we have a model flat at our project site.",
 
-PROJECT HIGHLIGHTS: Fully Residential Campus with seven 14-storied towers with all modern amenities like Swimming pool, kids pool, club house, multipurpose gaming courts.
+        "Q: Is North Enclave RERA approved? What are the project approvals? | A: Project is approved by RERA.",
 
-APARTMENTS AVAILABLE: 2 BHK and 3 BHK Apartments.
+        "Q: Is car parking available for 3 BHK at North Enclave? | A: We have car parking facility for 3 BHK option.",
 
-APARTMENT SIZES:
-- 2 BHK RERA Carpet Area: 575 sqft to 588 sqft | Super Built Up Area: 1047 sqft to 1070 sqft
-- 3 BHK RERA Carpet Area: 774 sqft to 808 sqft | Super Built Up Area: 1407 sqft to 1469 sqft
+        "Q: Is car parking available for 2 BHK at North Enclave? | A: We regret to inform you that we do not have any allotted car parking facility for the 2 BHK option. For more details on this matter, one of our team members will provide further explanation.",
 
-PROJECT DETAILS:
-- Launch Date: 15th March 2021
-- Expected Completion: 31st December 2025
-- Total Apartments: 392
-- Carpet Area Percentage: approximately 45%
-- Total Land Area: 10,334 Sq. Mts (1,11,234 Sq. Ft)
-- Total Floors: 14
-- Total Towers: 7
-- Units per Floor: 4
-- Model Flat: Ready to view
+        "Q: What is the RERA number of North Enclave? | A: RERA Numbers: PR/GJ/GANDHINAGAR/GANDHINAGAR/AUDA/RAA04324/A1R/211021. L Block: PR/GJ/GANDHINAGAR/GANDHINAGAR/AUDA/MAA09056/150921.",
 
-RERA NUMBER: PR/GJ/AHMEDABAD/SANAND/AUDA/RAA07702/241120
+        "Q: What amenities are available at North Enclave? | A: Amenities offered at North Enclave are: Lavish Clubhouse, Pickleball Court, Community Hall, Indoor Games, Gym, Swimming Pool, Kids Play Area, Children Library and many more.",
 
-AMENITIES: Kids Play Area, GYM, Open Amphitheatre, Community Hall, Lavish Club House, Indoor Sports, Multipurpose Gaming Courts, Pets Area, Swimming Pool, Kids Pool, Yoga Deck, aesthetically designed entrance gate with 24x7 security monitoring systems.
+        # --- PRICING & BOOKING ---
+        "Q: What is the approximate cost or price of apartments at North Enclave? | A: Approximate cost at North Enclave: 3 BHK Apartments start from Rs. 64,75,000 onwards.",
 
-CAR PARKING: Covered and open car parking provided. No allocated parking charges — ample parking space available.
-SOURCE OF WATER: Ground Water.
+        "Q: Which banks are affiliated with or have approved North Enclave? | A: Project is approved from all leading banks including govt, private and NBFC.",
 
-PRICING:
-- Rate: Rs. 6,190/- per sqft on RERA Carpet Area
-- Rate: Rs. 3,400/- per sqft on Super Built Up Area
-- Preferential Location Charge (PLC): Rs. 100/- per sqft on super built up area
-- 2 BHK: Starting from Rs. 35.70 lakhs onwards
-- 3 BHK: Starting from Rs. 47.89 lakhs onwards
-- Club Membership Charges: NONE
-- Maintenance Fee: Rs. 4/- per sqft on Carpet Area for 24 months
-- Booking Amount: 10% of Total Consideration
-- Price Negotiation: NOT possible.
-- Bank Approvals: Approved from major Banks and Financial Institutions""",
+        "Q: Is price negotiable at North Enclave? | A: Sorry, prices are fixed. No negotiation.",
+
+        "Q: What are the car parking charges at North Enclave? | A: Car Parking Charges - Rs. 1,50,000/- + GST.",
+
+        "Q: What is the booking amount for North Enclave? | A: Booking Amount is 10% of the agreement value.",
+
+        "Q: Are bank loans available for North Enclave? | A: Project is approved from all leading banks including govt, private and NBFC.",
+    ],
+
+    # =========================================================================
+    # AMARA
+    # =========================================================================
+    "amara": [
+
+        # --- LOCATION & CONNECTIVITY ---
+        "Q: Where is Amara located? | A: Amara is located besides Gokuldham, Eklavya School Road, Shela Extension, Sanathal, Ahmedabad.",
+
+        "Q: Who is the contact person for Amara? How to contact Amara? | A: For more information on this aspect, please call +91 8123002555.",
+
+        "Q: What is the postal address of Amara? | A: Amara, besides Gokuldham, Eklavya School Road, Shela Extension, Sanathal, Ahmedabad - 382210.",
+
+        "Q: What is the distance from Amara to airport, railway station, and bus stand? | A: Distance from Amara: Airport - 25 kms (40 mins). Railway Station (Ahmedabad) - 15 kms (20 mins). Sarkhej Railway Station - 3.5 kms. Central Bus Station (Ahmedabad) - 15 kms (20 mins). Nehrunagar Bus Station - 9 kms (12 mins).",
+
+        "Q: What are the nearest hospitals to Amara? | A: Distance from Amara to nearest hospitals: Sahyog General Hospital - 2.5 kms. Aadarsh Hospital - 2.5 kms. Sanidhya Multispeciality - 3.8 kms. Krishna Shalby - 5 kms.",
+
+        "Q: What are the nearest schools and educational institutions to Amara? | A: Distance from Amara to nearest educational institutions: Eklavya School - 0.2 kms. Lakshya International - 2 kms. Shanti Asiatic - 3 kms.",
+
+        "Q: What are the nearby vicinities and distances from Amara? | A: Distance from Amara: Sanand - 7 kms. Prahladnagar Junction - 7 kms. YMCA Club - 6 kms. Sarkhej Cross Road - 5 kms.",
+
+        "Q: What are the location highlights of Amara? | A: Amara is a Corner Plot on Proposed 80 Ft road with two side open road, with close proximity to the posh locality of Gokuldham and Safal Vihan.",
+
+        # --- PROJECT DETAILS ---
+        "Q: What are the project highlights of Amara? | A: Amara is a Fully Residential Campus with seven 14-storied towers, with all modern amenities like Swimming pool, kids pool, club house, multipurpose gaming courts etc.",
+
+        "Q: What type of project is Amara? | A: Amara is a fully residential project.",
+
+        "Q: What type of flats are available at Amara? | A: Project offers 2 BHK and 3 BHK Apartments.",
+
+        "Q: What is the area of 2 BHK at Amara? | A: Area of 2 BHK (RERA Carpet area) ranges from 575 sqft to 588 sqft. Super built up area ranges from 1047 sqft to 1070 sqft.",
+
+        "Q: What is the area of 3 BHK at Amara? | A: Area of 3 BHK (RERA Carpet area) ranges from 774 sqft to 808 sqft. Super built up area ranges from 1407 sqft to 1469 sqft.",
+
+        "Q: How many total apartments does Amara have? | A: Project has 392 Apartments.",
+
+        "Q: What is the carpet area percentage at Amara? | A: Percentage of Carpet area is approx. 45%.",
+
+        "Q: What is the total land area of Amara? | A: Total land area of the project is 10,334 Sq. Mts (1,11,234 Sq. Ft).",
+
+        "Q: How many floors does Amara have? | A: Project has 14 floors.",
+
+        "Q: How many towers or blocks does Amara have? | A: Project has 7 towers.",
+
+        "Q: How many units are on each floor at Amara? | A: We have 4 units on each floor.",
+
+        "Q: Is Amara approved? What are the project approvals? | A: Project is approved from the concerned authority.",
+
+        "Q: When was Amara launched? | A: Project was launched on 15th March 2021.",
+
+        "Q: What is the completion or possession date of Amara? | A: Amara is expected to complete by 31st December 2025.",
+
+        "Q: Is there a model flat at Amara? | A: Yes, model flat is ready to view.",
+
+        "Q: Is car parking available at Amara? | A: We provide covered and open car parking.",
+
+        "Q: What is the source of water at Amara? | A: Source of Water is through Ground Water.",
+
+        "Q: What amenities are available at Amara? | A: Amenities offered at Amara are: Kids Play Area, GYM, Open Amphitheatre, Community Hall, Lavish Club House, Indoor Sports, Multipurpose Gaming Courts, Pets Area, Swimming Pool, Kids Pool, Yoga Deck, Aesthetically designed entrance gate with 24x7 security monitoring systems.",
+
+        "Q: What is the RERA number of Amara? | A: RERA Number Registration No. - PR/GJ/AHMEDABAD/SANAND/AUDA/RAA07702/241120.",
+
+        # --- PRICING & BOOKING ---
+        "Q: What is the rate per sqft at Amara? | A: Rate per sqft at Amara is Rs. 6,190/- on RERA Carpet Area and Rs. 3,400/- on Super Built Up Area. Preferential Location Charge (PLC) is Rs. 100/- per Sq.ft on super built up area.",
+
+        "Q: What is the basic cost or price of apartments at Amara? | A: Basic cost at Amara: 2 BHK ranges from Rs. 35.70 lakhs onwards. 3 BHK ranges from Rs. 47.89 lakhs onwards.",
+
+        "Q: Is price negotiable at Amara? | A: Sorry, we do not negotiate on price.",
+
+        "Q: What are the club membership charges at Amara? | A: No club membership charges.",
+
+        "Q: What is the maintenance fee at Amara? | A: Maintenance fee is Rs. 4/- per sqft on Carpet Area for 24 months.",
+
+        "Q: What are the car parking charges at Amara? | A: As we do not provide allocated car parking, we do not charge for it. However, there is ample car parking space available.",
+
+        "Q: What is the booking amount for Amara? | A: Booking amount is 10% of Total Consideration.",
+
+        "Q: Are bank loans available for Amara? Which banks have approved Amara? | A: Project is approved from major Banks and Financial Institutions.",
+    ]
 }
+
+# =============================================================================
+# Search KB — keyword overlap scoring
+# =============================================================================
+def search_kb(query, prop, top_k=8):
+    qw = set(re.findall(r'\w+', query.lower()))
+    scored = []
+    for chunk in KNOWLEDGE_BASE.get(prop, []):
+        cw = set(re.findall(r'\w+', chunk.lower()))
+        score = len(qw & cw)
+        if score > 0:
+            scored.append((score, chunk))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [c for _, c in scored[:top_k]]
 
 # =============================================================================
 # Database
@@ -191,92 +195,67 @@ PRICING:
 def init_db():
     conn = sqlite3.connect("conversations.db")
     try:
-        conn.execute("SELECT property, language FROM chats LIMIT 1")
+        conn.execute("SELECT property,language FROM chats LIMIT 1")
     except:
+        print("Upgrading DB...")
         conn.execute("DROP TABLE IF EXISTS chats")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS chats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT, timestamp TEXT, role TEXT,
-            message TEXT, property TEXT, language TEXT)""")
-    conn.commit()
-    conn.close()
+    conn.execute("""CREATE TABLE IF NOT EXISTS chats(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT, timestamp TEXT, role TEXT,
+        message TEXT, property TEXT, language TEXT)""")
+    conn.commit(); conn.close()
 
 def db_save(sid, role, msg, prop="", lang="english"):
     conn = sqlite3.connect("conversations.db")
     conn.execute("INSERT INTO chats VALUES(NULL,?,?,?,?,?,?)",
                  (sid, datetime.datetime.now().isoformat(), role, msg, prop, lang))
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
 
-def db_history(sid, lang):
+def db_history(sid):
     conn = sqlite3.connect("conversations.db")
     rows = conn.execute(
-        "SELECT role, message FROM chats WHERE session_id=? AND language=? ORDER BY id",
-        (sid, lang),
-    ).fetchall()
+        "SELECT role,message FROM chats WHERE session_id=? ORDER BY id", (sid,)).fetchall()
     conn.close()
     return [{"role": r[0], "message": r[1]} for r in rows]
 
 # =============================================================================
-# Gemini — THE KEY FIX:
-# 1. Pass FULL KB as plain text (no keyword search — search fails on Hindi/Gujarati)
-# 2. system_instruction with language rule at TOP and BOTTOM
-# 3. Gemini itself decides which property info to use based on the question
+# Gemini AI
 # =============================================================================
-def ask_gemini(user_msg, history, lang):
+LANG_RULE = {
+    "english":  "Reply ONLY in English.",
+    "hindi":    "केवल हिंदी में जवाब दें।",
+    "gujarati": "માત્ર ગુજરાતીમાં જ જવાબ આપો."
+}
+PROP_NAMES = {"north_enclave": "North Enclave", "amara": "Amara"}
+CONTACT    = {"north_enclave": "Mr. Ronak Thaker at 9979997528", "amara": "+91 8123002555"}
+
+def ask_gemini(user_msg, kb_results, history, prop, lang):
     genai.configure(api_key=GEMINI_API_KEY)
+    model   = genai.GenerativeModel("gemini-2.5-flash")
+    pname   = PROP_NAMES.get(prop, "our project")
+    contact = CONTACT.get(prop, "our sales team")
+    ctx     = "\n\n".join(kb_results) if kb_results else ""
 
-    lang_rule     = LANG_SYSTEM.get(lang, LANG_SYSTEM["english"])
-    lang_reminder = LANG_REMINDER.get(lang, LANG_REMINDER["english"])
+    system = f"""You are a warm and professional real estate sales assistant for {pname}, Ahmedabad.
+{LANG_RULE.get(lang, 'Reply in English.')}
 
-    # Pass COMPLETE knowledge base for BOTH properties — no keyword filtering
-    kb_ne    = KNOWLEDGE_BASE["north_enclave"]
-    kb_amara = KNOWLEDGE_BASE["amara"]
+KNOWLEDGE BASE — answer STRICTLY and ONLY from what is written below. Do NOT invent, assume, or add any information not present here:
+{ctx if ctx else "No relevant information found in the knowledge base for this query."}
 
-    system_instruction = f"""{lang_rule}
+STRICT RULES:
+1. Answer ONLY about {pname} using the knowledge base above.
+2. Keep answers concise — 2 to 4 sentences. Preserve all numbers, RERA numbers, phone numbers, distances, areas, and prices EXACTLY as written in the knowledge base — never round or alter them.
+3. Use "Rs." for all currency values.
+4. If the user's question is NOT covered anywhere in the knowledge base, reply: "I'm sorry, I don't have that specific information. For detailed assistance, please contact {contact}."
+5. If the user asks about a topic completely unrelated to {pname} (e.g. other properties, general topics), reply: "I can only assist with queries related to {pname}. Is there anything about our project I can help you with?"
+6. Never invent or guess prices, areas, dates, names, distances, or any other fact.
+7. If the user asks a question that has a partial match, answer only the part that is covered in the knowledge base and say you don't have info on the rest.
+"""
 
-You are a warm, professional real estate sales assistant for TWO residential projects in Ahmedabad:
-1. North Enclave — S.G. Highway, Khoraj (3 BHK, Ready to Move)
-2. Amara — Shela Extension, Sanathal (2 & 3 BHK, Dec 2025)
-
-===================== NORTH ENCLAVE — FULL KNOWLEDGE BASE =====================
-{kb_ne}
-===============================================================================
-
-========================= AMARA — FULL KNOWLEDGE BASE ========================
-{kb_amara}
-===============================================================================
-
-HOW TO ANSWER:
-- If user asks about Amara (mentions: amara, अमारा, અમારા, shela, sanathal, gokuldham, eklavya, 8123002555, or Amara-specific details like 392 apartments, 7 towers, yoga deck, etc.) → answer ONLY from AMARA knowledge base.
-- If user asks about North Enclave (mentions: north enclave, नॉर्थ एन्क्लेव, નોર્થ એન્ક્લેવ, khoraj, vaishnodevi, ronak, 9979997528, or NE-specific details) → answer ONLY from NORTH ENCLAVE knowledge base.
-- If user asks a general question without specifying a project → answer for BOTH projects separately.
-- Reproduce all numbers, RERA numbers, phone numbers, distances, areas, prices EXACTLY as written.
-- Use "Rs." for all currency values.
-- Keep answers clear and to 2-5 sentences per project.
-- If something is not in the knowledge base, say so and give the relevant contact number.
-- NEVER invent or assume any fact not in the knowledge base.
-
-{lang_reminder}"""
-
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        system_instruction=system_instruction,
-    )
-
-    gh = []
-    for h in history[-6:]:
-        gh.append({
-            "role": "user" if h["role"] == "user" else "model",
-            "parts": [h["message"]]
-        })
-
-    # Append language reminder to EVERY user message
-    full_msg = f"{user_msg}\n\n[IMPORTANT — {lang_reminder}]"
-
+    gh   = [{"role": "user" if h["role"] == "user" else "model", "parts": [h["message"]]}
+            for h in history[-6:]]
     chat = model.start_chat(history=gh)
-    return chat.send_message(full_msg).text
+    return chat.send_message(f"{system}\n\nUser: {user_msg}").text
 
 # =============================================================================
 # TTS / STT
@@ -285,14 +264,14 @@ def tts(text, lang="english"):
     try:
         client = ElevenLabs(api_key=ELEVENLABS_KEY)
         vid    = VOICE_IDS.get(lang, VOICE_IDS["english"])
-        clean  = re.sub(r"[*#_`]", "", text)[:900]
+        clean  = re.sub(r'[*#_`]', '', text)[:900]
         lc     = ELEVEN_LANG.get(lang)
         kw = dict(
             text=clean, voice_id=vid,
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
-            voice_settings={"stability":0.5,"similarity_boost":0.85,
-                            "style":0.2,"use_speaker_boost":True},
+            voice_settings={"stability": 0.5, "similarity_boost": 0.85,
+                            "style": 0.2, "use_speaker_boost": True}
         )
         if lc:
             kw["language_code"] = lc
@@ -311,52 +290,56 @@ def stt(filepath, filename):
 # Routes
 # =============================================================================
 @app.route("/")
-def index(): return app.send_static_file("index.html")
+def index():
+    return app.send_static_file("index.html")
 
 @app.route("/greet", methods=["POST"])
 def greet():
     d    = request.json or {}
     sid  = d.get("session_id", "default")
-    lang = d.get("language",   "english")
-    GREETINGS = {
-        "english":  "Welcome! I'm your property assistant for North Enclave and Amara — two premium residential projects in Ahmedabad. Ask me anything about either project — location, price, amenities, RERA, booking, and more. How can I help you today?",
-        "hindi":    "स्वागत है! मैं नॉर्थ एन्क्लेव और अमारा — अहमदाबाद के दो प्रीमियम आवासीय प्रोजेक्ट्स का आपका सहायक हूँ। आप किसी भी प्रोजेक्ट के बारे में — स्थान, कीमत, सुविधाएं, RERA, बुकिंग — कुछ भी पूछ सकते हैं। मैं आपकी कैसे मदद कर सकता हूँ?",
-        "gujarati": "સ્વાગત છે! હું નોર્થ એન્ક્લેવ અને અમારા — અમદાવાદના બે પ્રીમિયમ રહેઠાણ પ્રોજેક્ટ્સ માટે તમારો સહાયક છું. તમે કોઈ પણ પ્રોજેક્ટ વિશે — સ્થળ, ભાવ, સુવિધા, RERA, બુકિંગ — કંઈ પણ પૂછી શકો છો. હું તમને કઈ રીતે મદદ કરી શકું?",
+    prop = d.get("property", "north_enclave")
+    lang = d.get("language", "english")
+    G = {
+        "north_enclave": {
+            "english":  "Welcome! I'm your assistant for North Enclave — a luxurious ready-to-move apartment project on S.G. Highway, Khoraj, Ahmedabad. It offers spacious 3 BHK apartments. How can I help you today?",
+            "hindi":    "स्वागत है! मैं नॉर्थ एन्क्लेव का आपका सहायक हूँ — एस.जी. हाइवे, खोराज, अहमदाबाद पर एक शानदार रेडी-टू-मूव प्रोजेक्ट। यहाँ विशाल 3 BHK अपार्टमेंट उपलब्ध हैं। मैं आपकी कैसे मदद कर सकता हूँ?",
+            "gujarati": "સ્વાગત છે! હું નોર્થ એન્ક્લેવ માટે તમારો સહાયક છું — S.G. હાઇવે, ખોરજ, અમદાવાદ પર ભવ્ય રેડી-ટૂ-મૂવ પ્રોજેક્ટ. અહીં વિશાળ 3 BHK ઉપલબ્ધ છે. હું તમને કઈ રીતે મદદ કરી શકું?"
+        },
+        "amara": {
+            "english":  "Welcome! I'm your assistant for Amara — a premium residential project in Shela Extension, Sanathal, Ahmedabad, offering 2 and 3 BHK apartments. How can I help you today?",
+            "hindi":    "स्वागत है! मैं अमारा का आपका सहायक हूँ — शेला एक्सटेंशन, सनाथल, अहमदाबाद में एक प्रीमियम आवासीय प्रोजेक्ट जो 2 BHK और 3 BHK अपार्टमेंट प्रदान करता है। मैं आपकी कैसे मदद कर सकता हूँ?",
+            "gujarati": "સ્વાગત છે! હું અમારા માટે તમારો સહાયક છું — શેળા એક્સ્ટેન્શન, સાણઠ, અમદાવાદ ખાતે પ્રીમિયમ 2 BHK અને 3 BHK પ્રોજેક્ટ. આજે હું તમને કઈ રીતે મદદ કરી શકું?"
+        }
     }
-    greeting = GREETINGS.get(lang, GREETINGS["english"])
-    db_save(sid, "assistant", greeting, "both", lang)
-    return jsonify({"text": greeting, "audio": tts(greeting, lang), "format": "mp3"})
+    greeting = G.get(prop, {}).get(lang, "Welcome! How can I help you today?")
+    db_save(sid, "assistant", greeting, prop, lang)
+    audio = tts(greeting, lang)
+    return jsonify({"text": greeting, "audio": audio, "format": "mp3"})
 
 @app.route("/chat", methods=["POST"])
 def chat():
     d    = request.json or {}
     msg  = d.get("message", "").strip()
     sid  = d.get("session_id", "default")
-    lang = d.get("language",   "english")
-    if not msg: return jsonify({"error": "empty"}), 400
-
-    db_save(sid, "user", msg, "detect", lang)
-
-    hist = db_history(sid, lang)
-    if hist and hist[-1]["role"] == "user":
-        hist = hist[:-1]
-
+    prop = d.get("property", "north_enclave")
+    lang = d.get("language", "english")
+    if not msg:
+        return jsonify({"error": "empty"}), 400
+    db_save(sid, "user", msg, prop, lang)
+    kb   = search_kb(msg, prop)
+    hist = db_history(sid)[:-1]
     try:
-        answer = ask_gemini(msg, hist, lang)
+        answer = ask_gemini(msg, kb, hist, prop, lang)
     except Exception as e:
-        print(f"Gemini error: {e}")
-        answer = {
-            "english":  "I'm sorry, I encountered an error. Please try again.",
-            "hindi":    "मुझे खेद है, एक त्रुटि हुई। कृपया पुनः प्रयास करें।",
-            "gujarati": "મને માફ કરો, એક ભૂલ આવી. કૃપા કરી ફરી પ્રયાસ કરો.",
-        }.get(lang, "Sorry, please try again.")
-
-    db_save(sid, "assistant", answer, "detect", lang)
-    return jsonify({"answer": answer, "audio": tts(answer, lang), "format": "mp3"})
+        answer = f"Error: {e}"
+    db_save(sid, "assistant", answer, prop, lang)
+    audio = tts(answer, lang)
+    return jsonify({"answer": answer, "audio": audio, "format": "mp3"})
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
-    if "audio" not in request.files: return jsonify({"error": "no audio"}), 400
+    if "audio" not in request.files:
+        return jsonify({"error": "no audio"}), 400
     f = request.files["audio"]
     try:
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
@@ -365,16 +348,12 @@ def transcribe():
         os.unlink(tmp.name)
         return jsonify({"text": text})
     except Exception as e:
-        print(f"STT error: {e}"); return jsonify({"error": str(e)}), 500
+        print(f"STT error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/history/<session_id>")
 def get_history(session_id):
-    conn = sqlite3.connect("conversations.db")
-    rows = conn.execute(
-        "SELECT role, message FROM chats WHERE session_id=? ORDER BY id", (session_id,)
-    ).fetchall()
-    conn.close()
-    return jsonify([{"role": r[0], "message": r[1]} for r in rows])
+    return jsonify(db_history(session_id))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
