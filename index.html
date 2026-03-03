@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Property Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #0f0f0f; color: #e8e8e8; font-family: 'Inter', sans-serif; }
+
+  #startScreen {
+    position: fixed; inset: 0; z-index: 999; background: #0f0f0f;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ss-logo  { font-size: 56px; margin-bottom: 14px; }
+  .ss-title { font-size: 24px; font-weight: 600; color: #e8d4a8; }
+  .ss-sub   { font-size: 13px; color: #555; margin-top: 6px; margin-bottom: 12px; }
+  .ss-projects {
+    display: flex; gap: 10px; margin-bottom: 36px; flex-wrap: wrap; justify-content: center;
+  }
+  .ss-badge {
+    background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 20px;
+    padding: 4px 14px; font-size: 11px; color: #c8a96e;
+  }
+  .step-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: #555; margin-bottom: 16px; text-align: center;
+  }
+  .lang-cards { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .lang-card {
+    width: 130px; padding: 20px 14px; border-radius: 14px;
+    background: #161616; border: 2px solid #2a2a2a;
+    cursor: pointer; text-align: center; transition: all .2s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .lang-card:hover { border-color: #c8a96e; transform: translateY(-3px); box-shadow: 0 6px 22px rgba(200,169,110,.2); }
+  .lang-card .lc-flag { font-size: 34px; }
+  .lang-card .lc-name { font-size: 15px; font-weight: 600; color: #e8d4a8; }
+  .lang-card .lc-sub  { font-size: 10px; color: #666; }
+
+  .app { display: flex; flex-direction: column; height: 100vh; max-width: 800px; margin: 0 auto; }
+  header {
+    padding: 12px 20px; border-bottom: 1px solid #1e1e1e;
+    display: flex; align-items: center; gap: 10px;
+    background: #111; flex-shrink: 0;
+  }
+  .logo {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: linear-gradient(135deg, #c8a96e, #8a6030);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; flex-shrink: 0;
+  }
+  .logo-text h1 { font-size: 14px; font-weight: 600; color: #e8d4a8; }
+  .logo-text p  { font-size: 10px; color: #555; margin-top: 1px; }
+  .hbadge {
+    background: #1e1e1e; border: 1px solid #333; border-radius: 20px;
+    padding: 2px 10px; font-size: 10px; color: #c8a96e;
+  }
+  .speak-badge { display: none; align-items: center; gap: 6px; font-size: 11px; color: #c8a96e; }
+  .speak-badge.on { display: flex; }
+  .sw span {
+    display: inline-block; width: 3px; border-radius: 2px;
+    background: #c8a96e; animation: wave .8s infinite ease-in-out;
+  }
+  .sw span:nth-child(1){height:7px;animation-delay:0s}
+  .sw span:nth-child(2){height:13px;animation-delay:.1s}
+  .sw span:nth-child(3){height:9px;animation-delay:.2s}
+  .sw span:nth-child(4){height:13px;animation-delay:.1s}
+  .sw span:nth-child(5){height:7px;animation-delay:0s}
+  @keyframes wave{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.4)}}
+  .stop-btn {
+    background: #2a1a1a; border: 1px solid #c8a96e; color: #c8a96e;
+    border-radius: 6px; padding: 2px 9px; font-size: 11px;
+    cursor: pointer; font-family: 'Inter', sans-serif; margin-left: 4px;
+  }
+  #changeBtn {
+    margin-left: auto; background: none; border: 1px solid #2a2a2a;
+    border-radius: 8px; color: #555; font-size: 11px; padding: 5px 10px;
+    cursor: pointer; font-family: 'Inter', sans-serif; transition: all .15s; white-space: nowrap;
+  }
+  #changeBtn:hover { border-color: #c8a96e; color: #c8a96e; }
+
+  .messages {
+    flex: 1; overflow-y: auto; padding: 22px 20px;
+    display: flex; flex-direction: column; gap: 15px;
+  }
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+  .msg { display: flex; gap: 10px; animation: fadeup .25s ease; }
+  .msg.user { flex-direction: row-reverse; }
+  @keyframes fadeup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .msg.bot  .avatar { background: linear-gradient(135deg,#c8a96e,#8a6030); color:#000; font-weight:700; }
+  .msg.user .avatar { background: #1e1e1e; border: 1px solid #2e2e2e; }
+  .msg-body { max-width: 75%; }
+  .msg.user .msg-body { display:flex; flex-direction:column; align-items:flex-end; }
+  .bubble { padding:11px 15px; border-radius:15px; font-size:14px; line-height:1.65; }
+  .msg.bot  .bubble { background:#1a1a1a; border:1px solid #2a2a2a; border-top-left-radius:4px; }
+  .msg.user .bubble { background:#c8a96e; color:#000; font-weight:500; border-top-right-radius:4px; }
+  .msg-foot { display:flex; align-items:center; gap:7px; margin-top:4px; }
+  .msg.user .msg-foot { justify-content:flex-end; }
+  .time { font-size:10px; color:#444; }
+  .replay-btn {
+    background:none; border:1px solid #2a2a2a; border-radius:5px;
+    color:#555; font-size:10px; padding:2px 7px; cursor:pointer;
+    font-family:'Inter',sans-serif; transition:all .15s;
+  }
+  .replay-btn:hover { border-color:#c8a96e; color:#c8a96e; }
+  .typing-wrap { display:flex; gap:10px; }
+  .typing { display:flex; gap:5px; padding:11px 15px; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:15px; border-top-left-radius:4px; }
+  .tdot { width:7px; height:7px; border-radius:50%; background:#c8a96e; opacity:.4; animation:bounce 1.1s infinite; }
+  .tdot:nth-child(2){animation-delay:.18s} .tdot:nth-child(3){animation-delay:.36s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
+
+  .quick-section { padding: 0 20px 12px; flex-shrink: 0; }
+  .quick-label { font-size: 10px; color: #444; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em; }
+  .quick-btns { display: flex; flex-wrap: wrap; gap: 7px; }
+  .qbtn {
+    background:#1a1a1a; border:1px solid #2a2a2a; border-radius:20px;
+    padding:6px 13px; font-family:'Inter',sans-serif; font-size:12px;
+    color:#888; cursor:pointer; transition:all .15s;
+  }
+  .qbtn:hover { border-color:#c8a96e; color:#c8a96e; }
+
+  .input-area { padding:10px 20px 16px; border-top:1px solid #1a1a1a; background:#111; flex-shrink:0; }
+  .mic-bar {
+    display:none; align-items:center; justify-content:center; gap:8px;
+    padding:7px; background:#1a0000; border:1px solid #3a0000;
+    border-radius:8px; margin-bottom:8px; font-size:12px; color:#ff6666;
+  }
+  .mic-bar.on { display:flex; }
+  .mic-red { width:8px; height:8px; border-radius:50%; background:#f44; animation:pulse .7s infinite; }
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+  .input-row {
+    display:flex; align-items:flex-end; gap:8px;
+    background:#1a1a1a; border:1px solid #2a2a2a;
+    border-radius:13px; padding:9px 11px; transition:border .2s;
+  }
+  .input-row:focus-within { border-color:#c8a96e; }
+  textarea {
+    flex:1; background:none; border:none; outline:none;
+    color:#e8e8e8; font-family:'Inter',sans-serif; font-size:14px;
+    resize:none; min-height:22px; max-height:120px; line-height:1.5;
+  }
+  textarea::placeholder { color:#3a3a3a; }
+  .ibtn {
+    width:37px; height:37px; border-radius:9px; border:none;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    font-size:16px; flex-shrink:0; transition:all .18s;
+  }
+  .mic-btn { background:#1e1e1e; border:1px solid #2e2e2e; color:#555; }
+  .mic-btn:hover { border-color:#c8a96e; color:#c8a96e; }
+  .mic-btn.rec { background:#8b0000; color:#fff; border-color:#8b0000; animation:pulse .9s infinite; }
+  .send-btn { background:linear-gradient(135deg,#c8a96e,#8a6030); color:#000; font-weight:700; }
+  .send-btn:hover { transform:scale(1.06); }
+  .send-btn:disabled { opacity:.3; cursor:not-allowed; transform:none; }
+  .hint { font-size:11px; color:#333; text-align:center; margin-top:7px; }
+</style>
+</head>
+<body>
+
+<!-- ══ START SCREEN — Language only ══ -->
+<div id="startScreen">
+  <div class="ss-logo">🏛</div>
+  <div class="ss-title">Property Assistant</div>
+  <div class="ss-sub">Ahmedabad</div>
+  <div class="ss-projects">
+    <span class="ss-badge">🏙 North Enclave · Khoraj</span>
+    <span class="ss-badge">🌿 Amara · Sanathal</span>
+  </div>
+  <p class="step-label">Choose your language / भाषा चुनें / ભાષા પસંદ કરો</p>
+  <div class="lang-cards">
+    <div class="lang-card" onclick="selectLang('english')">
+      <div class="lc-flag">🇬🇧</div>
+      <div class="lc-name">English</div>
+      <div class="lc-sub">English</div>
+    </div>
+    <div class="lang-card" onclick="selectLang('hindi')">
+      <div class="lc-flag">🇮🇳</div>
+      <div class="lc-name">हिंदी</div>
+      <div class="lc-sub">Hindi</div>
+    </div>
+    <div class="lang-card" onclick="selectLang('gujarati')">
+      <div class="lc-flag">🌼</div>
+      <div class="lc-name">ગુજરાતી</div>
+      <div class="lc-sub">Gujarati</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div class="app">
+  <header>
+    <div class="logo">🏛</div>
+    <div class="logo-text">
+      <h1>Property Assistant</h1>
+      <p>North Enclave &amp; Amara · Ahmedabad</p>
+    </div>
+    <span class="hbadge" id="hLangBadge" style="display:none"></span>
+    <div class="speak-badge" id="speakBadge">
+      <div class="sw"><span></span><span></span><span></span><span></span><span></span></div>
+      <span id="speakLabel">Speaking…</span>
+      <button class="stop-btn" onclick="stopAudio()">⏹</button>
+    </div>
+    <button id="changeBtn" onclick="resetAll()">⇄ Language</button>
+  </header>
+
+  <div class="messages" id="messages"></div>
+
+  <div class="quick-section">
+    <p class="quick-label" id="quickLabel">Suggested questions</p>
+    <div class="quick-btns" id="quickBtns"></div>
+  </div>
+
+  <div class="input-area">
+    <div class="mic-bar" id="micBar">
+      <div class="mic-red"></div>
+      <span id="micLabel">Listening… click ⏹ to stop</span>
+    </div>
+    <div class="input-row">
+      <textarea id="inp" placeholder="Ask about North Enclave or Amara…" rows="1"
+        onkeydown="onKey(event)" oninput="grow(this)"></textarea>
+      <button class="ibtn mic-btn" id="micBtn" onclick="toggleMic()">🎤</button>
+      <button class="ibtn send-btn" id="sendBtn" onclick="send()">➤</button>
+    </div>
+    <p class="hint" id="hintText">Enter to send · Shift+Enter for new line · 🎤 for voice</p>
+  </div>
+</div>
+
+<audio id="player"></audio>
+
+<script>
+const SID = "s_" + Date.now();
+let LANG  = "";
+let recording = false;
+let mediaRec  = null;
+let audioMap  = {};
+let msgN      = 0;
+
+const UI = {
+  english: {
+    quickLabel:  "Suggested questions",
+    listening:   "Listening… click ⏹ to stop",
+    hint:        "Enter to send · Shift+Enter for new line · 🎤 for voice",
+    speaking:    "Speaking…",
+    placeholder: "Ask about North Enclave or Amara…",
+    quick: [
+      ["🏙 North Enclave Price",   "What is the price of 3 BHK at North Enclave?"],
+      ["🌿 Amara Price",           "What is the price of flats at Amara?"],
+      ["📍 North Enclave Location","Where is North Enclave located?"],
+      ["📍 Amara Location",        "Where is Amara located?"],
+      ["🏊 North Enclave Amenities","What amenities are at North Enclave?"],
+      ["🏊 Amara Amenities",       "What amenities are available at Amara?"],
+      ["📋 North Enclave RERA",    "What is the RERA number of North Enclave?"],
+      ["📋 Amara RERA",            "What is the RERA number of Amara?"],
+    ]
+  },
+  hindi: {
+    quickLabel:  "सुझाए गए प्रश्न",
+    listening:   "सुन रहा हूँ… रोकने के लिए ⏹ दबाएं",
+    hint:        "Enter से भेजें · Shift+Enter नई लाइन · 🎤 आवाज़ के लिए",
+    speaking:    "बोल रहा हूँ…",
+    placeholder: "नॉर्थ एन्क्लेव या अमारा के बारे में पूछें…",
+    quick: [
+      ["🏙 नॉर्थ एन्क्लेव कीमत",  "नॉर्थ एन्क्लेव में 3 BHK की कीमत क्या है?"],
+      ["🌿 अमारा कीमत",            "अमारा में फ्लैट की कीमत क्या है?"],
+      ["📍 नॉर्थ एन्क्लेव स्थान",  "नॉर्थ एन्क्लेव कहाँ स्थित है?"],
+      ["📍 अमारा स्थान",           "अमारा कहाँ स्थित है?"],
+      ["🏊 नॉर्थ एन्क्लेव सुविधाएं","नॉर्थ एन्क्लेव में कौन सी सुविधाएं हैं?"],
+      ["🏊 अमारा सुविधाएं",        "अमारा में कौन सी सुविधाएं हैं?"],
+      ["📋 नॉर्थ एन्क्लेव RERA",   "नॉर्थ एन्क्लेव का RERA नंबर क्या है?"],
+      ["📋 अमारा RERA",            "अमारा का RERA नंबर क्या है?"],
+    ]
+  },
+  gujarati: {
+    quickLabel:  "સૂચિત પ્રશ્નો",
+    listening:   "સાંભળું છું… ⏹ દબાવો",
+    hint:        "Enter → મોકલો · Shift+Enter → નવી લાઇન · 🎤 → વૉઇસ",
+    speaking:    "બોલી રહ્યો છું…",
+    placeholder: "નોર્થ એન્ક્લેવ અથવા અમારા વિશે પૂછો…",
+    quick: [
+      ["🏙 નોર્થ એન્ક્લેવ ભાવ",   "નોર્થ એન્ક્લેવમાં 3 BHK નો ભાવ શું છે?"],
+      ["🌿 અમારા ભાવ",             "અમારામાં ફ્લૅટ નો ભાવ શું છે?"],
+      ["📍 નોર્થ એન્ક્લેવ સ્થળ",   "નોર્થ એન્ક્લેવ ક્યાં આવ્યું છે?"],
+      ["📍 અમારા સ્થળ",            "અમારા ક્યાં આવ્યું છે?"],
+      ["🏊 નોર્થ એન્ક્લેવ સુવિધા", "નોર્થ એન્ક્લેવમાં કઈ સુવિધા છે?"],
+      ["🏊 અમારા સુવિધા",          "અમારામાં કઈ સુવિધા છે?"],
+      ["📋 નોર્થ એન્ક્લેવ RERA",   "નોર્થ એન્ક્લેવ RERA નંબર?"],
+      ["📋 અમારા RERA",            "અમારા RERA નંબર?"],
+    ]
+  }
+};
+
+const LANG_BADGE = { english: "🇬🇧 EN", hindi: "🇮🇳 HI", gujarati: "🌼 GU" };
+
+async function selectLang(lang) {
+  LANG = lang;
+  document.getElementById("startScreen").style.display = "none";
+
+  // Update UI strings
+  document.getElementById("speakLabel").textContent  = UI[lang].speaking;
+  document.getElementById("quickLabel").textContent  = UI[lang].quickLabel;
+  document.getElementById("micLabel").textContent    = UI[lang].listening;
+  document.getElementById("hintText").textContent    = UI[lang].hint;
+  document.getElementById("inp").placeholder         = UI[lang].placeholder;
+  document.getElementById("hLangBadge").textContent  = LANG_BADGE[lang];
+  document.getElementById("hLangBadge").style.display = "inline-block";
+
+  // Quick buttons
+  const btns = document.getElementById("quickBtns");
+  btns.innerHTML = "";
+  UI[lang].quick.forEach(([label, q]) => {
+    const b = document.createElement("button");
+    b.className   = "qbtn";
+    b.textContent = label;
+    b.onclick     = () => ask(q);
+    btns.appendChild(b);
+  });
+
+  // Fetch greeting
+  try {
+    const res  = await fetch("/greet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: SID, language: lang })
+    });
+    const data = await res.json();
+    addMsg("bot", data.text, data.audio, data.format);
+    if (data.audio) playAudio(data.audio, data.format);
+  } catch(e) {
+    addMsg("bot", "Welcome! Ask me about North Enclave or Amara.");
+  }
+}
+
+function resetAll() {
+  LANG = "";
+  document.getElementById("messages").innerHTML = "";
+  audioMap = {}; msgN = 0;
+  document.getElementById("hLangBadge").style.display = "none";
+  document.getElementById("startScreen").style.display = "flex";
+}
+
+async function send() {
+  const inp = document.getElementById("inp");
+  const msg = inp.value.trim();
+  if (!msg || !LANG) return;
+
+  inp.value = ""; grow(inp);
+  addMsg("user", msg);
+  document.getElementById("sendBtn").disabled = true;
+  const tid = addTyping();
+
+  try {
+    const res  = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg, session_id: SID, language: LANG })
+    });
+    const data = await res.json();
+    removeEl(tid);
+    addMsg("bot", data.answer, data.audio, data.format);
+    if (data.audio) playAudio(data.audio, data.format);
+  } catch(e) {
+    removeEl(tid);
+    addMsg("bot", "⚠️ Server error. Make sure app.py is running.");
+  }
+  document.getElementById("sendBtn").disabled = false;
+}
+
+function ask(q) { document.getElementById("inp").value = q; send(); }
+
+async function toggleMic() {
+  if (recording) { mediaRec && mediaRec.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let chunks = [];
+    mediaRec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    mediaRec.ondataavailable = e => chunks.push(e.data);
+    mediaRec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      recording = false;
+      document.getElementById("micBtn").classList.remove("rec");
+      document.getElementById("micBtn").textContent = "🎤";
+      document.getElementById("micBar").classList.remove("on");
+      const tid = addTyping();
+      try {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const form = new FormData();
+        form.append("audio", blob, "voice.webm");
+        const res  = await fetch("/transcribe", { method: "POST", body: form });
+        const data = await res.json();
+        removeEl(tid);
+        if (data.text) {
+          document.getElementById("inp").value = data.text;
+          grow(document.getElementById("inp"));
+          send();
+        } else {
+          addMsg("bot", "Sorry, could not hear clearly. Please try again.");
+        }
+      } catch(e) {
+        removeEl(tid); addMsg("bot", "⚠️ Transcription failed.");
+      }
+    };
+    mediaRec.start();
+    recording = true;
+    document.getElementById("micBtn").classList.add("rec");
+    document.getElementById("micBtn").textContent = "⏹";
+    document.getElementById("micBar").classList.add("on");
+  } catch(e) {
+    addMsg("bot", "⚠️ Microphone access denied.");
+  }
+}
+
+function playAudio(b64, fmt = "mp3") {
+  const mime   = fmt === "wav" ? "audio/wav" : "audio/mpeg";
+  const player = document.getElementById("player");
+  const badge  = document.getElementById("speakBadge");
+  player.src = `data:${mime};base64,${b64}`;
+  player.play();
+  badge.classList.add("on");
+  player.onended = () => badge.classList.remove("on");
+}
+
+function stopAudio() {
+  const player = document.getElementById("player");
+  player.pause(); player.currentTime = 0;
+  document.getElementById("speakBadge").classList.remove("on");
+}
+
+function replayMsg(id) {
+  if (audioMap[id]) playAudio(audioMap[id].b64, audioMap[id].fmt);
+}
+
+function addMsg(role, text, audio = null, fmt = "mp3") {
+  const id  = "m" + (++msgN);
+  const box = document.getElementById("messages");
+  const div = document.createElement("div");
+  div.className = "msg " + role; div.id = id;
+  if (audio) audioMap[id] = { b64: audio, fmt };
+  const time    = new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+  const replayB = audio ? `<button class="replay-btn" onclick="replayMsg('${id}')">▶</button>` : "";
+  const ava     = role === "bot" ? "🏛" : "👤";
+  div.innerHTML = `
+    <div class="avatar">${ava}</div>
+    <div class="msg-body">
+      <div class="bubble">${esc(text)}</div>
+      <div class="msg-foot"><span class="time">${time}</span>${replayB}</div>
+    </div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function addTyping() {
+  const id = "t" + Date.now();
+  const box = document.getElementById("messages");
+  const div = document.createElement("div");
+  div.id = id; div.className = "msg bot";
+  div.innerHTML = `<div class="avatar">🏛</div><div class="typing-wrap"><div class="typing"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div></div>`;
+  box.appendChild(div); box.scrollTop = box.scrollHeight;
+  return id;
+}
+
+function removeEl(id) { const e = document.getElementById(id); if (e) e.remove(); }
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>"); }
+function onKey(e) { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } }
+function grow(el) { el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,120)+"px"; }
+</script>
+</body>
+</html>

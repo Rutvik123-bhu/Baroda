@@ -1,0 +1,8 @@
+flask
+flask-cors
+groq
+google-generativeai
+python-docx
+python-dotenv
+elevenlabs
+httpx==0.27.2
