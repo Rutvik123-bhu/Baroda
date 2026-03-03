@@ -12,7 +12,7 @@ from flask_cors import CORS
 from groq import Groq
 import google.generativeai as genai
 from elevenlabs.client import ElevenLabs
-
+import os
 GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 ELEVENLABS_KEY = os.getenv("ELEVENLABS_API_KEY", "")
@@ -377,7 +377,5 @@ def get_history(session_id):
     return jsonify([{"role": r[0], "message": r[1]} for r in rows])
 
 if __name__ == "__main__":
-    init_db()
-    print("KB loaded — NE + Amara full text passed directly to Gemini")
-    print("Running -> http://localhost:5000")
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
