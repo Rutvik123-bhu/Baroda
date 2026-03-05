@@ -41,16 +41,12 @@ SARVAM_HINDI_LANG       = "hi-IN"
 SARVAM_GUJARATI_SPEAKER = os.getenv("SARVAM_GUJARATI_SPEAKER", "pooja")
 SARVAM_GUJARATI_LANG    = "gu-IN"
 
-# =============================================================================
-# Flask
-# =============================================================================
+
 BASE_DIR = Path(__file__).parent.resolve()
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
 CORS(app)
 
-# =============================================================================
-# Prompt config
-# =============================================================================
+
 LANG_SYSTEM = {
     "english": (
         "CRITICAL LANGUAGE RULE: You MUST reply in ENGLISH ONLY. "
@@ -77,9 +73,6 @@ LANG_REMINDER = {
     "gujarati": "યાદ રાખો: તમારો સંપૂર્ણ જવાબ ફક્ત ગુજરાતીમાં જ હોવો જોઈએ. અંગ્રેજીમાં ન લખો.",
 }
 
-# =============================================================================
-# Knowledge base
-# =============================================================================
 KNOWLEDGE_BASE = {
     "north_enclave": """NORTH ENCLAVE — Complete Property Information
 
