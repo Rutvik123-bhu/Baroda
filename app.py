@@ -1,4 +1,4 @@
-import os, re, sqlite3, datetime, tempfile, base64
+import os, re, sqlite3, datetime, tempfile, base64, requests
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
@@ -14,20 +14,43 @@ from google import genai
 from google.genai import types
 from elevenlabs.client import ElevenLabs
 
-GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-ELEVENLABS_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-VOICE_IDS = {
-    "english":  os.getenv("VOICE_ENGLISH",  "pzxut4zZz4GImZNlqQ3H"),
-    "hindi":    os.getenv("VOICE_HINDI",    "TRnaQb7q41oL7sV0w6Bu"),
-    "gujarati": os.getenv("VOICE_GUJARATI", "y3bFrCRcSPphE8Ksv5BW"),
-}
-ELEVEN_LANG = {"english": "en", "hindi": "hi"}
+# =============================================================================
+# API Keys — set all four in your .env file
+# =============================================================================
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY",       "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY",      "")
+ELEVENLABS_KEY = os.getenv("ELEVENLABS_API_KEY",  "")   # English only
+SARVAM_KEY     = os.getenv("SARVAM_API_KEY",      "")   # Hindi + Gujarati
 
+# =============================================================================
+# TTS provider config
+# =============================================================================
+
+# ── ElevenLabs (English only) ─────────────────────────────────────────────────
+ELEVEN_VOICE_EN  = os.getenv("VOICE_ENGLISH", "FaqthkZu1EWxXxUFbAfb")
+
+# ── Sarvam AI — bulbul:v3, handles numbers/currency natively ─────────────────
+SARVAM_TTS_URL   = "https://api.sarvam.ai/text-to-speech"
+SARVAM_MODEL     = "bulbul:v3"
+
+# Hindi  — roopa: warm female, recommended for Hindi customer support
+SARVAM_HINDI_SPEAKER    = os.getenv("SARVAM_HINDI_SPEAKER",    "roopa")
+SARVAM_HINDI_LANG       = "hi-IN"
+
+# Gujarati — pooja: encouraging female, built for assistance flows
+SARVAM_GUJARATI_SPEAKER = os.getenv("SARVAM_GUJARATI_SPEAKER", "pooja")
+SARVAM_GUJARATI_LANG    = "gu-IN"
+
+# =============================================================================
+# Flask
+# =============================================================================
 BASE_DIR = Path(__file__).parent.resolve()
 app = Flask(__name__, static_folder=str(BASE_DIR), static_url_path="")
 CORS(app)
 
+# =============================================================================
+# Prompt config
+# =============================================================================
 LANG_SYSTEM = {
     "english": (
         "CRITICAL LANGUAGE RULE: You MUST reply in ENGLISH ONLY. "
@@ -54,6 +77,9 @@ LANG_REMINDER = {
     "gujarati": "યાદ રાખો: તમારો સંપૂર્ણ જવાબ ફક્ત ગુજરાતીમાં જ હોવો જોઈએ. અંગ્રેજીમાં ન લખો.",
 }
 
+# =============================================================================
+# Knowledge base
+# =============================================================================
 KNOWLEDGE_BASE = {
     "north_enclave": """NORTH ENCLAVE — Complete Property Information
 
@@ -285,36 +311,163 @@ HOW TO ANSWER:
     return response.text
 
 # =============================================================================
-# TTS — fully isolated, NEVER raises, always returns None on any error
+# TTS helpers
 # =============================================================================
-def tts(text, lang="english"):
+
+def _wav_to_mp3_b64(wav_bytes: bytes) -> str:
+    """
+    Convert WAV bytes to base64 MP3.
+    Falls back to base64 WAV if pydub/ffmpeg is not installed —
+    modern browsers play WAV fine so this is a safe fallback.
+    """
+    try:
+        from pydub import AudioSegment
+        import io
+        seg = AudioSegment.from_wav(io.BytesIO(wav_bytes))
+        buf = io.BytesIO()
+        seg.export(buf, format="mp3", bitrate="128k")
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        return base64.b64encode(wav_bytes).decode()
+
+# =============================================================================
+# TTS — ElevenLabs  (English ONLY)
+# Number pre-processor applied here since ElevenLabs needs help with numbers.
+# =============================================================================
+
+# Digit → English word for phone number reading
+_DIGIT_WORDS = {
+    '0': 'zero', '1': 'one',   '2': 'two',   '3': 'three', '4': 'four',
+    '5': 'five', '6': 'six',   '7': 'seven', '8': 'eight', '9': 'nine',
+}
+
+def _phone_to_words(digits: str) -> str:
+    return ' '.join(_DIGIT_WORDS[d] for d in digits if d in _DIGIT_WORDS)
+
+def _to_indian_english(n: int) -> str:
+    """6475000 -> '64 lakh 75 thousand'  |  6190 -> '6 thousand 1 hundred 90'"""
+    if n == 0: return "0"
+    parts = []
+    crore = n // 10_000_000; n = n % 10_000_000
+    lakh  = n // 100_000;    n = n % 100_000
+    thou  = n // 1_000;      n = n % 1_000
+    hund  = n // 100;        rest = n % 100
+    if crore: parts.append(f"{crore} crore")
+    if lakh:  parts.append(f"{lakh} lakh")
+    if thou:  parts.append(f"{thou} thousand")
+    if hund:  parts.append(f"{hund} hundred")
+    if rest:  parts.append(str(rest))
+    return " ".join(parts)
+
+def _fix_number_en(m: re.Match) -> str:
+    raw    = m.group(0)
+    digits = raw.replace(",", "")
+    if not digits.isdigit(): return raw
+    if len(digits) >= 10: return _phone_to_words(digits)   # phone
+    n = int(digits)
+    if n >= 1_000: return _to_indian_english(n)            # price/area
+    return digits                                           # small numbers
+
+def _prepare_english_tts(text: str) -> str:
+    """Pre-process for ElevenLabs English voice."""
+    text = re.sub(r"[*#_`]", "", text)[:900]
+    # +91 phone numbers
+    text = re.sub(
+        r"(\+91)[\s\-]?(\d{10})",
+        lambda m: "plus nine one " + _phone_to_words(m.group(2)),
+        text,
+    )
+    # all other number tokens
+    text = re.sub(r"\b[\d,]+\b", _fix_number_en, text)
+    return text
+
+def tts_elevenlabs(text: str) -> str | None:
+    """ElevenLabs TTS for English. Returns base64 mp3 or None."""
     try:
         if not ELEVENLABS_KEY:
-            print("TTS: No ElevenLabs API key")
-            return None
+            print("TTS-EL: No API key"); return None
         client = ElevenLabs(api_key=ELEVENLABS_KEY)
-        vid    = VOICE_IDS.get(lang, VOICE_IDS["english"])
-        clean  = re.sub(r"[*#_`]", "", text)[:900]
-        lc     = ELEVEN_LANG.get(lang)
+        clean  = _prepare_english_tts(text)
         kw = dict(
             text=clean,
-            voice_id=vid,
+            voice_id=ELEVEN_VOICE_EN,
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
             voice_settings={
-                "stability": 0.5,
-                "similarity_boost": 0.85,
-                "style": 0.2,
-                "use_speaker_boost": True
+                "stability":         0.5,
+                "similarity_boost":  0.85,
+                "style":             0.2,
+                "use_speaker_boost": True,
             },
+            language_code="en",
         )
-        if lc:
-            kw["language_code"] = lc
         audio_bytes = b"".join(client.text_to_speech.convert(**kw))
         return base64.b64encode(audio_bytes).decode()
     except Exception as e:
-        print(f"TTS error ({lang}): {e}")
-        return None
+        print(f"TTS-EL error: {e}"); return None
+
+# =============================================================================
+# TTS — Sarvam AI  (Hindi + Gujarati)
+# bulbul:v3 normalises numbers, currencies, dates natively — no preprocessing.
+#   Hindi    → roopa  (hi-IN) — warm female, recommended for customer support
+#   Gujarati → pooja  (gu-IN) — encouraging female, assistance flows
+# =============================================================================
+def tts_sarvam(text: str, lang: str) -> str | None:
+    """Sarvam AI TTS for Hindi/Gujarati. Returns base64 mp3 or None."""
+    try:
+        if not SARVAM_KEY:
+            print("TTS-Sarvam: No API key"); return None
+
+        # Choose speaker + language code
+        if lang == "hindi":
+            speaker   = SARVAM_HINDI_SPEAKER
+            lang_code = SARVAM_HINDI_LANG
+        else:  # gujarati
+            speaker   = SARVAM_GUJARATI_SPEAKER
+            lang_code = SARVAM_GUJARATI_LANG
+
+        # Strip markdown only — Sarvam handles numbers natively
+        clean = re.sub(r"[*#_`]", "", text)[:2500]
+
+        payload = {
+            "inputs":               [clean],
+            "target_language_code": lang_code,
+            "speaker":              speaker,
+            "model":                SARVAM_MODEL,
+            "pace":                 1.0,
+            "enable_preprocessing": True,   # handles Rs., %, phone numbers, dates
+        }
+        headers = {
+            "api-subscription-key": SARVAM_KEY,
+            "Content-Type":         "application/json",
+        }
+
+        resp = requests.post(SARVAM_TTS_URL, json=payload, headers=headers, timeout=30)
+        resp.raise_for_status()
+
+        b64wav    = resp.json()["audios"][0]
+        wav_bytes = base64.b64decode(b64wav)
+        return _wav_to_mp3_b64(wav_bytes)
+
+    except Exception as e:
+        print(f"TTS-Sarvam error ({lang}): {e}"); return None
+
+# =============================================================================
+# TTS — unified router
+# =============================================================================
+def tts(text: str, lang: str = "english") -> tuple:
+    """
+    Route to correct TTS provider:
+      english   → ElevenLabs  (FaqthkZu1EWxXxUFbAfb)
+      hindi     → Sarvam AI   (roopa,  hi-IN, bulbul:v3)
+      gujarati  → Sarvam AI   (pooja,  gu-IN, bulbul:v3)
+
+    Returns (base64_audio | None, format_string)
+    """
+    if lang == "english":
+        return tts_elevenlabs(text), "mp3"
+    else:
+        return tts_sarvam(text, lang), "mp3"
 
 # =============================================================================
 # STT
@@ -348,14 +501,15 @@ def greet():
             "hindi":    "स्वागत है! मैं नॉर्थ एन्क्लेव और अमारा — अहमदाबाद के दो प्रीमियम आवासीय प्रोजेक्ट्स का आपका सहायक हूँ। आप किसी भी प्रोजेक्ट के बारे में — स्थान, कीमत, सुविधाएं, RERA, बुकिंग — कुछ भी पूछ सकते हैं। मैं आपकी कैसे मदद कर सकता हूँ?",
             "gujarati": "સ્વાગત છે! હું નોર્થ એન્ક્લેવ અને અમારા — અમદાવાદના બે પ્રીમિયમ રહેઠાણ પ્રોજેક્ટ્સ માટે તમારો સહાયક છું. તમે કોઈ પણ પ્રોજેક્ટ વિશે — સ્થળ, ભાવ, સુવિધા, RERA, બુકિંગ — કંઈ પણ પૂછી શકો છો. હું તમને કઈ રીતે મદદ કરી શકું?",
         }
-        greeting = GREETINGS.get(lang, GREETINGS["english"])
+        greeting   = GREETINGS.get(lang, GREETINGS["english"])
         db_save(sid, "assistant", greeting, "both", lang)
-        audio = tts(greeting, lang)  # None if TTS fails — that's fine
-        return jsonify({"text": greeting, "audio": audio, "format": "mp3"})
+        audio, fmt = tts(greeting, lang)
+        return jsonify({"text": greeting, "audio": audio, "format": fmt})
 
     except Exception as e:
         print(f"Greet route error: {e}")
-        return jsonify({"text": "Welcome! Ask me about North Enclave or Amara.", "audio": None}), 200
+        return jsonify({"text": "Welcome! Ask me about North Enclave or Amara.",
+                        "audio": None, "format": "mp3"}), 200
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -373,7 +527,7 @@ def chat():
         if hist and hist[-1]["role"] == "user":
             hist = hist[:-1]
 
-        # --- Gemini call ---
+        # Gemini
         try:
             answer = ask_gemini(msg, hist, lang)
         except Exception as e:
@@ -381,26 +535,26 @@ def chat():
             answer = {
                 "english":  "I'm sorry, I encountered an error. Please try again.",
                 "hindi":    "मुझे खेद है, एक त्रुटि हुई। कृपया पुनः प्रयास करें।",
-                "gujarati": "મને માફ કરો, એક ભૂલ આવી. કૃપા કરી ફરી પ્રયાસ કરો.",
+                "gujarati": "મને માફ કરો, એક ભૂલ આવી. કૃपा करी ફरी प्रयास करो.",
             }.get(lang, "Sorry, please try again.")
 
         db_save(sid, "assistant", answer, "auto", lang)
 
-        # --- TTS call — isolated, never blocks response ---
-        audio = tts(answer, lang)
-
-        return jsonify({"answer": answer, "audio": audio, "format": "mp3"})
+        audio, fmt = tts(answer, lang)
+        return jsonify({"answer": answer, "audio": audio, "format": fmt})
 
     except Exception as e:
         print(f"Chat route error: {e}")
+        lang_safe = (request.json or {}).get("language", "english")
         return jsonify({
             "answer": {
                 "english":  "Server error. Please try again.",
                 "hindi":    "सर्वर त्रुटि। कृपया पुनः प्रयास करें।",
-                "gujarati": "સર્વર ભૂલ. કૃપા કરી ફરી પ્રયાસ કરો.",
-            }.get(request.json.get("language","english") if request.json else "english", "Server error."),
-            "audio": None
-        }), 200  # Return 200 so frontend shows the message instead of "Server error"
+                "gujarati": "સर्वर ભૂল. કृपा करी ફरी प्रयास करो.",
+            }.get(lang_safe, "Server error."),
+            "audio": None,
+            "format": "mp3",
+        }), 200
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
